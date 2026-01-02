@@ -49,6 +49,7 @@ from flcore.servers.serverda import PFL_DA
 from flcore.servers.serverlc import FedLC
 from flcore.servers.serveras import FedAS
 from flcore.servers.servercross import FedCross
+from flcore.servers.serversrfedavg import SR_FedAvg
 
 from flcore.trainmodel.models import *
 
@@ -188,6 +189,9 @@ def run(args):
             args.model.fc = nn.Identity()
             args.model = BaseHeadSplit(args.model, args.head)
             server = FedAvg(args, i)
+
+        elif args.algorithm == "SR-FedAvg":
+            server = SR_FedAvg(args, i)
 
         elif args.algorithm == "Local":
             server = Local(args, i)
@@ -497,7 +501,10 @@ if __name__ == "__main__":
     parser.add_argument('-fsb', "--first_stage_bound", type=int, default=0)
     parser.add_argument('-ca', "--fedcross_alpha", type=float, default=0.99)
     parser.add_argument('-cmss', "--collaberative_model_select_strategy", type=int, default=1)
-
+    
+    # SR-FedAvg
+    parser.add_argument('-srbeta', "--sr_beta", type=float, default=0.9,
+                        help="Momentum coefficient for Stein-Rule shrinkage in SR-FedAvg")
 
     args = parser.parse_args()
 
