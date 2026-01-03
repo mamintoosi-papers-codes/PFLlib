@@ -502,9 +502,13 @@ if __name__ == "__main__":
     parser.add_argument('-ca', "--fedcross_alpha", type=float, default=0.99)
     parser.add_argument('-cmss', "--collaberative_model_select_strategy", type=int, default=1)
     
-    # SR-FedAvg
+    # SR-FedAvg with Top-k Compression
     parser.add_argument('-srbeta', "--sr_beta", type=float, default=0.9,
                         help="Momentum coefficient for Stein-Rule shrinkage in SR-FedAvg")
+    parser.add_argument('-srwarmup', "--sr_warmup_rounds", type=int, default=5,
+                        help="Warmup rounds before applying Stein-Rule shrinkage")
+    parser.add_argument('-topk', "--topk_ratio", type=float, default=0.1,
+                        help="Top-k compression ratio (e.g., 0.1 = keep top 10%)")
 
     args = parser.parse_args()
 

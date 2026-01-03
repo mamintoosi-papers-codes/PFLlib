@@ -1,7 +1,7 @@
 import time
 import torch
 import copy
-from flcore.clients.clientavg import clientAVG
+from flcore.clients.clienttopk import clientTopK
 from flcore.servers.serverbase import Server
 
 
@@ -9,16 +9,18 @@ class SR_FedAvg(Server):
     def __init__(self, args, times):
         super().__init__(args, times)
 
-        # ---- SR-FedAvg parameters ----
+        # ---- SR-FedAvg + Top-k compression parameters ----
         self.warmup_rounds = getattr(args, "sr_warmup_rounds", 10)
+        self.topk_ratio = getattr(args, "topk_ratio", 0.1)
         self.epsilon = 1e-10
 
         # select slow clients
         self.set_slow_clients()
-        self.set_clients(clientAVG)
+        self.set_clients(clientTopK)
 
         print(f"\nJoin ratio / total clients: {self.join_ratio} / {self.num_clients}")
         print(f"SR-FedAvg warmup rounds: {self.warmup_rounds}")
+        print(f"Top-k compression ratio: {self.topk_ratio:.2%}")
         print("Finished creating server and clients.")
 
         self.Budget = []
@@ -73,7 +75,7 @@ class SR_FedAvg(Server):
 
             # Stein shrinkage coefficient
             c_l = 1.0 - ((p_l - 2.0) * sigma2_l) / (D_l + self.epsilon)
-            c_l = torch.clamp(c_l, min=0.0, max=1.0)
+            c_l = torch.clamp(c_l, min=0.2, max=1.0)
 
             delta_sr.append(c_l * d_l)
 
