@@ -43,7 +43,7 @@ class clientTopK(clientAVG):
             delta.append(current_param.data.clone() - initial_param.clone())
         
         # ---- Step 3.5: Add client-side Gaussian noise (KEY STEP) ----
-        noise_std = 0.02; #getattr(self.args, "client_noise_std", 0.0)
+        noise_std = 0.05; #getattr(self.args, "client_noise_std", 0.0)
         if noise_std > 0:
             noisy_delta = []
             for d in delta:
