@@ -1,0 +1,6 @@
+Metric,FedAvg (Baseline),SR-FedAvg (Without Top-k),SR-FedAvg + Top-k
+Final Test Accuracy,0.8152 ± 0.0325,0.5772 ± 0.0456,0.5297 ± 0.0906
+Best Test Accuracy,0.8264,0.5772,0.5549
+Final Train Loss,0.5814 ± 0.0591,1.7485 ± 0.0359,1.7864 ± 0.0426
+Best Train Loss,0.5814,1.7485,1.7864
+Convergence Round,48,50,48
