@@ -71,11 +71,12 @@ class SR_FedAvg(Server):
             D_l = torch.sum(d_l ** 2)
 
             # variance estimate (scalar)
-            sigma2_l = torch.mean(d_l ** 2)
+            # sigma2_l = torch.mean(d_l ** 2)
+            sigma2_l = torch.var(d_l, unbiased=False)
 
             # Stein shrinkage coefficient
             c_l = 1.0 - ((p_l - 2.0) * sigma2_l) / (D_l + self.epsilon)
-            c_l = torch.clamp(c_l, min=0.2, max=1.0)
+            c_l = torch.clamp(c_l, min=0.5, max=1.0)
 
             delta_sr.append(c_l * d_l)
 

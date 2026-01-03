@@ -42,14 +42,14 @@ class clientTopK(clientAVG):
                                                self.initial_params):
             delta.append(current_param.data.clone() - initial_param.clone())
         
-        # ---- Step 3.5: Add client-side Gaussian noise (KEY STEP) ----
-        noise_std = 0.05; #getattr(self.args, "client_noise_std", 0.0)
-        if noise_std > 0:
-            noisy_delta = []
-            for d in delta:
-                noise = torch.randn_like(d) * noise_std
-                noisy_delta.append(d + noise)
-            delta = noisy_delta
+        # # ---- Step 3.5: Add client-side Gaussian noise (KEY STEP) ----
+        # noise_std = 0.05; #getattr(self.args, "client_noise_std", 0.0)
+        # if noise_std > 0:
+        #     noisy_delta = []
+        #     for d in delta:
+        #         noise = torch.randn_like(d) * noise_std
+        #         noisy_delta.append(d + noise)
+        #     delta = noisy_delta
 
         # ---- Step 4: Apply Top-k compression ----
         self.compressed_delta = self._apply_topk_compression(delta)
