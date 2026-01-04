@@ -1,117 +1,72 @@
 import time
-import torch
-import copy
 from flcore.clients.clienttopk import clientTopK
 from flcore.servers.serverbase import Server
 
 
 class SR_FedAvg(Server):
+    """
+    Server-side implementation for SR-FedAvg (CORRECT version):
+
+    - No Stein Rule on the server
+    - No shrinkage after aggregation
+    - Standard FedAvg aggregation
+    - SR + Top-k are applied ONLY on client-side updates
+    """
+
     def __init__(self, args, times):
         super().__init__(args, times)
 
-        # ---- SR-FedAvg + Top-k compression parameters ----
-        self.warmup_rounds = getattr(args, "sr_warmup_rounds", 10)
-        self.topk_ratio = getattr(args, "topk_ratio", 0.1)
-        self.epsilon = 1e-10
+        # ---- bookkeeping / logging only ----
+        self.topk_ratio = getattr(args, "topk_ratio", 1.0)
+        self.use_sr = getattr(args, "use_sr", True)
 
         # select slow clients
         self.set_slow_clients()
+
+        # IMPORTANT: use clientTopK (which includes SR + Top-k)
         self.set_clients(clientTopK)
 
         print(f"\nJoin ratio / total clients: {self.join_ratio} / {self.num_clients}")
-        print(f"SR-FedAvg warmup rounds: {self.warmup_rounds}")
-        print(f"Top-k compression ratio: {self.topk_ratio:.2%}")
+        print(f"Client-side SR enabled: {self.use_sr}")
+        print(f"Client-side Top-k ratio: {self.topk_ratio:.2%}")
+        print("Server aggregation: Standard FedAvg")
         print("Finished creating server and clients.")
 
         self.Budget = []
-
-    def aggregate_parameters_sr(self, round_idx):
-        """
-        Minimal SR-FedAvg aggregation (no momentum, with warmup).
-
-        After warmup:
-            delta_l_sr = c_l * delta_l
-        """
-        assert len(self.uploaded_models) > 0
-
-        # ---- Save old global parameters ----
-        old_global_params = [p.data.clone() for p in self.global_model.parameters()]
-
-        # ---- Standard FedAvg aggregation ----
-        aggregated_model = copy.deepcopy(self.uploaded_models[0])
-        for p in aggregated_model.parameters():
-            p.data.zero_()
-
-        for w, client_model in zip(self.uploaded_weights, self.uploaded_models):
-            for agg_p, client_p in zip(aggregated_model.parameters(),
-                                       client_model.parameters()):
-                agg_p.data += w * client_p.data
-
-        # ---- Compute delta_t ----
-        delta_t = [
-            agg_p.data.clone() - old_p
-            for agg_p, old_p in zip(aggregated_model.parameters(),
-                                    old_global_params)
-        ]
-
-        # ---- Warmup: behave exactly like FedAvg ----
-        if round_idx < self.warmup_rounds:
-            for p, old_p, d in zip(self.global_model.parameters(),
-                                   old_global_params,
-                                   delta_t):
-                p.data = old_p + d
-            return
-
-        # ---- Apply Stein Rule shrinkage (layer-wise) ----
-        delta_sr = []
-        for d_l in delta_t:
-            p_l = float(d_l.numel())
-
-            # squared norm
-            D_l = torch.sum(d_l ** 2)
-
-            # variance estimate (scalar)
-            # sigma2_l = torch.mean(d_l ** 2)
-            sigma2_l = torch.var(d_l, unbiased=False)
-
-            # Stein shrinkage coefficient
-            c_l = 1.0 - ((p_l - 2.0) * sigma2_l) / (D_l + self.epsilon)
-            c_l = torch.clamp(c_l, min=0.5, max=1.0)
-
-            delta_sr.append(c_l * d_l)
-
-        # ---- Update global model ----
-        for p, old_p, d_sr in zip(self.global_model.parameters(),
-                                  old_global_params,
-                                  delta_sr):
-            p.data = old_p + d_sr
 
     def train(self):
         for i in range(self.global_rounds + 1):
             start_time = time.time()
 
+            # ---- client selection & broadcast ----
             self.selected_clients = self.select_clients()
             self.send_models()
 
+            # ---- evaluation ----
             if i % self.eval_gap == 0:
                 print(f"\n------------- Round {i} -------------")
                 print("Evaluate global model")
                 self.evaluate()
 
+            # ---- local training ----
             for client in self.selected_clients:
                 client.train()
 
+            # ---- receive client updates ----
             self.receive_models()
 
+            # ---- optional DLG ----
             if self.dlg_eval and i % self.dlg_gap == 0:
                 self.call_dlg(i)
 
-            # ---- SR-FedAvg aggregation ----
-            self.aggregate_parameters_sr(i)
+            # ---- STANDARD FedAvg aggregation ----
+            self.aggregate_parameters()
 
+            # ---- bookkeeping ----
             self.Budget.append(time.time() - start_time)
             print('-' * 25, 'time cost', '-' * 25, self.Budget[-1])
 
+            # ---- early stopping ----
             if self.auto_break and self.check_done(
                 acc_lss=[self.rs_test_acc],
                 top_cnt=self.top_cnt
@@ -127,9 +82,10 @@ class SR_FedAvg(Server):
         self.save_results()
         self.save_global_model()
 
+        # ---- fine-tuning on new clients (if any) ----
         if self.num_new_clients > 0:
             self.eval_new_clients = True
-            self.set_new_clients(clientAVG)
+            self.set_new_clients(clientTopK)
             print("\n------------- Fine tuning round -------------")
             print("Evaluate new clients")
             self.evaluate()
